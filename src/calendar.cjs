@@ -56,6 +56,7 @@ function parseDate(body, fallbackTitle = '') {
 }
 
 function looksLikeNames(line) {
+  line = clean(line).replace(/\s*\($/, '');
   if (!line || line.length > 240 || /^(?:предупреждения|дата|описание|место|подпись|ост|саундтрек|цитата|время|обсуждение)\s*:/i.test(line)) return false;
   if (/^(?:подпись автора|правила|статы|техническая информация|внутренняя информация)$/i.test(line)) return false;
   if (/[!?«»❝❞]/.test(line)) return false;
@@ -63,11 +64,11 @@ function looksLikeNames(line) {
   if (/^(?:участники|действующие лица)\s*:/i.test(line)) return true;
   if (/^&\s*[A-ZА-ЯЁ][\p{L}'’.-]+(?:\s+[A-ZА-ЯЁ][\p{L}'’.-]+)+$/u.test(line)) return true;
   const comparable = line.replace(/\([^)]*\)/g, '').trim();
-  const tokens = comparable.replace(/[@&,+/]/g, ' ').split(/\s+/).filter(Boolean);
+  const tokens = comparable.replace(/[@&,+/|]/g, ' ').split(/\s+/).filter(Boolean);
   const capitals = tokens.filter((token) => /^[A-ZА-ЯЁ][\p{L}'’.-]*$/u.test(token));
   if ((line.match(/@/g) || []).length >= 2) return true;
-  if (/[@&]/.test(line)) {
-    const chunks = line.split('&').map((part) => clean(part.replace(/^@/, ''))).filter(Boolean);
+  if (/[@&|]/.test(line)) {
+    const chunks = line.split(/[&|]/).map((part) => clean(part.replace(/^@/, ''))).filter(Boolean);
     return chunks.length >= 2 && chunks.every((part) => /\p{L}/u.test(part) && part.split(/\s+/).length <= 8);
   }
   if (/,/.test(line)) {
@@ -83,8 +84,8 @@ function looksLikeNames(line) {
 function splitNames(text) {
   const normalized = clean(text).replace(/^\((.*)\)$/s, '$1').replace(/^[•·\s]+/, '').replace(/^&\s*/, '').replace(/\s+(?:anf|and)\s+other.*$/i, '').replace(/^(?:участники|действующие лица|в главных ролях|в фильме также снимались)\s*:\s*/i, '');
   if (/^(?:все желающие|все|любой желающий)/i.test(normalized)) return [normalized];
-  return normalized.split(/\s*(?:&|,|\+|\/|\band\b)\s*|\s+(?=@)/i)
-    .map((name) => clean(name.replace(/^@/, '').replace(/[.;]+$/, '')))
+  return normalized.split(/\s*(?:&|\||,|\+|\/|\band\b)\s*|\s+(?=@)/i)
+    .map((name) => clean(name.replace(/^@/, '').replace(/[.;]+$/, '').replace(/\s*\($/, '')))
     .filter((name) => name && name.length <= 80 && !/^(?:NPC|НПС|все|все желающие|кому.*)$/i.test(name));
 }
 
@@ -175,6 +176,20 @@ function normalizeEpisode(source, maskIndex, nameAliases = {}) {
 function normalizeEpisodes(source) {
   const maskIndex = buildMaskIndex(source.masks || []);
   const nameAliases = Object.fromEntries(Object.entries(source.nameAliases || {}).map(([alias, canonical]) => [clean(alias).toLowerCase(), clean(canonical)]));
+  const frequencies = new Map();
+  for (const episode of source.episodes || []) {
+    for (const participant of parseParticipants(episode.body)) {
+      const canonical = nameAliases[participant.toLowerCase()] || participant;
+      const folded = canonical.toLocaleLowerCase('ru');
+      if (!frequencies.has(folded)) frequencies.set(folded, new Map());
+      const variants = frequencies.get(folded);
+      variants.set(canonical, (variants.get(canonical) || 0) + 1);
+    }
+  }
+  for (const [folded, variants] of frequencies) {
+    const canonical = [...variants].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'en'))[0][0];
+    nameAliases[folded] = canonical;
+  }
   return (source.episodes || []).map((episode) => normalizeEpisode(episode, maskIndex, nameAliases)).sort((a, b) => a.dateStart.localeCompare(b.dateStart) || a.title.localeCompare(b.title, 'ru'));
 }
 
@@ -195,7 +210,8 @@ function buildCharacterIndex(episodes, masks = []) {
     names.add(clean(mask.mask));
   }
   return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b, 'en')).map((name) => {
-    const owner = maskIndex.ownerByCharacter[name.toLowerCase()] || null;
+    const resolvedOwner = maskIndex.ownerByCharacter[name.toLowerCase()] || null;
+    const owner = resolvedOwner && resolvedOwner.toLowerCase() !== name.toLowerCase() ? resolvedOwner : null;
     return {
       name,
       owner,
