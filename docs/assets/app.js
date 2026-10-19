@@ -62,11 +62,13 @@
 
   function renderParticipant(character) {
     const name = escapeText(character.name);
-    const owner = character.owner && character.owner !== character.name ? `<small>${escapeText(character.owner)}</small>` : '';
+    const hasOwner = character.owner && character.owner !== character.name;
+    const owner = hasOwner ? `<small>игрок ${escapeText(character.owner)}</small>` : '';
+    const label = escapeText(hasOwner ? `${character.name}, игрок ${character.owner}` : character.name);
     const visual = character.avatar
-      ? `<img src="${escapeText(character.avatar)}" alt="" loading="lazy" width="40" height="40">`
+      ? `<img src="${escapeText(character.avatar)}" alt="" loading="lazy" width="32" height="32">`
       : `<span class="participant-placeholder" aria-hidden="true">${escapeText(initials(character.name))}</span>`;
-    return `<span class="participant">${visual}<span>${name}${owner}</span></span>`;
+    return `<span class="participant" tabindex="0" aria-label="${label}">${visual}<span class="participant-tooltip" role="tooltip">${name}${owner}</span></span>`;
   }
 
   function formatDate(dateValue, dateEnd) {
@@ -83,14 +85,32 @@
     return `<article class="episode-card" data-episode-id="${episode.id}"><div class="episode-meta">${badges}</div><h4><a href="${escapeText(episode.url)}" target="_blank" rel="noopener">${escapeText(episode.title)}</a></h4><p class="episode-date">${escapeText(formatDate(episode.dateStart, episode.dateEnd))}${episode.location ? ` · ${escapeText(episode.location)}` : ''}</p><div class="participants">${participants}</div>${episode.description ? `<p class="episode-description">${escapeText(episode.description)}</p>` : ''}</article>`;
   }
 
-  function renderCalendar(episodes, characterMap) {
+  function renderCalendar(episodes, characterMap, options = {}) {
     const groups = groupEpisodes(episodes);
     if (!groups.length) return '<div class="empty-state"><strong>Ничего не найдено</strong><span>Попробуйте убрать часть фильтров.</span></div>';
-    return groups.map((year) => `<section class="year-section"><header class="year-heading"><span>Хронология</span><h2>${year.year}</h2><b>${year.months.reduce((sum, month) => sum + month.dates.reduce((count, date) => count + date.episodes.length, 0), 0)} эп.</b></header>${year.months.map((month) => `<section class="month-section"><h3><span>${String(month.month).padStart(2, '0')}</span>${MONTHS[month.month - 1]}</h3>${month.dates.map((date) => `<div class="date-row"><time datetime="${date.date}">${Number(date.date.slice(8, 10))}</time><div class="date-episodes">${date.episodes.map((episode) => episodeCard(episode, characterMap)).join('')}</div></div>`).join('')}</section>`).join('')}</section>`).join('');
+    const expanded = Boolean(options.autoExpand);
+    const hidden = expanded ? '' : ' hidden';
+    return groups.map((year) => {
+      const yearId = `year-${year.year}`;
+      const count = year.months.reduce((sum, month) => sum + month.dates.reduce((total, date) => total + date.episodes.length, 0), 0);
+      const months = year.months.map((month) => {
+        const monthId = `month-${year.year}-${String(month.month).padStart(2, '0')}`;
+        const monthCount = month.dates.reduce((sum, date) => sum + date.episodes.length, 0);
+        const dates = month.dates.map((date) => `<div class="date-row"><time datetime="${date.date}">${Number(date.date.slice(8, 10))}</time><div class="date-episodes">${date.episodes.map((episode) => episodeCard(episode, characterMap)).join('')}</div></div>`).join('');
+        return `<section class="month-section"><button type="button" class="month-heading" data-disclosure="${monthId}" aria-expanded="${expanded}" aria-controls="${monthId}"><span class="month-number">${String(month.month).padStart(2, '0')}</span><span>${MONTHS[month.month - 1]}</span><b>${monthCount} эп.</b><i aria-hidden="true"></i></button><div id="${monthId}" class="month-content"${hidden}>${dates}</div></section>`;
+      }).join('');
+      return `<section class="year-section"><button type="button" class="year-heading" data-disclosure="${yearId}" aria-expanded="${expanded}" aria-controls="${yearId}"><span>Хронология</span><h2>${year.year}</h2><b>${count} эп.</b><i aria-hidden="true"></i></button><div id="${yearId}" class="year-content"${hidden}>${months}</div></section>`;
+    }).join('');
   }
 
   function fillSelect(select, values, label) {
     select.innerHTML = `<option value="">${label}</option>${values.map(({ value, text }) => `<option value="${escapeText(value)}">${escapeText(text)}</option>`).join('')}`;
+  }
+
+  function toggleDisclosure(button, content) {
+    const expanded = button.getAttribute('aria-expanded') === 'true';
+    button.setAttribute('aria-expanded', String(!expanded));
+    content.hidden = expanded;
   }
 
   async function bootstrap() {
@@ -105,10 +125,18 @@
     const output = document.querySelector('#calendar');
     const count = document.querySelector('#result-count');
     const update = () => {
-      const filtered = filterEpisodes(data.episodes, Object.fromEntries(Object.entries(controls).map(([key, control]) => [key, control.value])));
-      output.innerHTML = renderCalendar(filtered, characterMap);
+      const filters = Object.fromEntries(Object.entries(controls).map(([key, control]) => [key, control.value]));
+      const filtered = filterEpisodes(data.episodes, filters);
+      output.innerHTML = renderCalendar(filtered, characterMap, { autoExpand: Object.values(filters).some(Boolean) });
       count.textContent = `${filtered.length} из ${data.episodes.length}`;
     };
+    output.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-disclosure]');
+      if (!button || !output.contains(button)) return;
+      const content = document.getElementById(button.dataset.disclosure);
+      if (!content) return;
+      toggleDisclosure(button, content);
+    });
     document.querySelector('#filters').addEventListener('input', update);
     document.querySelector('#filters').addEventListener('change', update);
     document.querySelector('#reset-filters').addEventListener('click', () => {
@@ -118,7 +146,7 @@
     update();
   }
 
-  const api = { escapeText, filterEpisodes, groupEpisodes, renderParticipant, renderCalendar, formatDate };
+  const api = { escapeText, filterEpisodes, groupEpisodes, renderParticipant, renderCalendar, formatDate, toggleDisclosure };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else {
     globalObject.SafeStoryboard = api;
