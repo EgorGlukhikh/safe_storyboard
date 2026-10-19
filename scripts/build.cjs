@@ -21,11 +21,13 @@ function buildRelease(rootDir = path.resolve(__dirname, '..')) {
   fs.copyFileSync(path.join(rootDir, 'src', 'site', 'index.html'), path.join(docsDir, 'index.html'));
   fs.copyFileSync(path.join(rootDir, 'src', 'site', 'styles.css'), path.join(assetsDir, 'styles.css'));
   fs.copyFileSync(path.join(rootDir, 'src', 'site', 'app.js'), path.join(assetsDir, 'app.js'));
+  fs.writeFileSync(path.join(docsDir, '.nojekyll'), '');
   fs.writeFileSync(path.join(dataDir, 'episodes.json'), `${JSON.stringify({
     generatedAt: source.generatedAt,
     episodes,
     characters,
   })}\n`);
+  fs.writeFileSync(path.join(rootDir, 'forum-embed.txt'), `[html]\n<iframe src="https://egorglukhikh.github.io/safe_storyboard/?v=1" title="Карта эпизодов SafeSpace" width="100%" height="1100" style="display:block;border:0;background:#f1eee5;"></iframe>\n[/html]\n`);
   return {
     episodes: episodes.length,
     buckets: countSourceBuckets(episodes),

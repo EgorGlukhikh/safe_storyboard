@@ -1,0 +1,3 @@
+[html]
+<iframe src="https://egorglukhikh.github.io/safe_storyboard/?v=1" title="Карта эпизодов SafeSpace" width="100%" height="1100" style="display:block;border:0;background:#f1eee5;"></iframe>
+[/html]
