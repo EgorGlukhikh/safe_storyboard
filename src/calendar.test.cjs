@@ -46,12 +46,28 @@ test('excludes alternative and non-episode sections', () => {
   assert.ok(episodes.every((episode) => !/альтернатив/i.test(`${episode.title} ${episode.sourceSection || ''}`)));
 });
 
-test('resolves a date and at least one participant for every episode', () => {
+test('resolves every date and leaves participants empty only for an explicit TBD roster', () => {
   const { normalizeEpisodes } = loadCalendar();
-  const episodes = normalizeEpisodes(loadSource());
+  const source = loadSource();
+  const episodes = normalizeEpisodes(source);
 
   assert.deepEqual(episodes.filter((episode) => !episode.dateStart).map((episode) => episode.id), []);
-  assert.deepEqual(episodes.filter((episode) => episode.participants.length === 0).map((episode) => episode.id), []);
+  const empty = episodes.filter((episode) => episode.participants.length === 0);
+  assert.ok(empty.length > 0);
+  assert.ok(empty.every((episode) => /участник[^:]*:\s*(?:TBD|уточняется|—|-)/i.test(source.episodes.find((raw) => raw.url === episode.url).body)));
+});
+
+test('does not treat episode titles or soundtrack lines as participants', () => {
+  const { parseParticipants } = loadCalendar();
+  assert.deepEqual(parseParticipants('A Very Large Cat\n\nGideon Prewett & Dragon Valmont\n\nПредупреждения: none'), ['Gideon Prewett', 'Dragon Valmont']);
+  assert.deepEqual(parseParticipants("Handle with Care\nDon't Hurt My Little Sister\n\nOlivin Mulciber & Morvran Avery\n\nДата: 14.07.1958"), ['Olivin Mulciber', 'Morvran Avery']);
+  assert.deepEqual(parseParticipants('Wonderful Life\nAndy Williams — song\n\nAlexandrite Flint (Avery)\n& Orla Fawley\n\nДата: 24.12.1953'), ['Alexandrite Flint (Avery)', 'Orla Fawley']);
+});
+
+test('parses cinematic participant labels and honors an explicit TBD roster', () => {
+  const { parseParticipants } = loadCalendar();
+  assert.deepEqual(parseParticipants('Title\nВ главных ролях: James & Lily\nВ фильме также снимались: @Julia White, @Remus Lupin\nПредупреждения: много'), ['James', 'Lily', 'Julia White', 'Remus Lupin']);
+  assert.deepEqual(parseParticipants('Тинворт & Тролли\nСписок участников квеста: TBD\nДата: 01.08.1979'), []);
 });
 
 test('indexes Gilroy Reid under Arthur Weasley without losing the mask identity', () => {

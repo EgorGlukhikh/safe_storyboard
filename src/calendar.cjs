@@ -61,7 +61,9 @@ function looksLikeNames(line) {
   if (/[!?«»❝❞]/.test(line)) return false;
   if (/^\([^()]+(?:,[^()]+)+\)$/.test(line)) return true;
   if (/^(?:участники|действующие лица)\s*:/i.test(line)) return true;
-  const tokens = line.replace(/[@&,+/]/g, ' ').split(/\s+/).filter(Boolean);
+  if (/^&\s*[A-ZА-ЯЁ][\p{L}'’.-]+(?:\s+[A-ZА-ЯЁ][\p{L}'’.-]+)+$/u.test(line)) return true;
+  const comparable = line.replace(/\([^)]*\)/g, '').trim();
+  const tokens = comparable.replace(/[@&,+/]/g, ' ').split(/\s+/).filter(Boolean);
   const capitals = tokens.filter((token) => /^[A-ZА-ЯЁ][\p{L}'’.-]*$/u.test(token));
   if ((line.match(/@/g) || []).length >= 2) return true;
   if (/[@&]/.test(line)) {
@@ -79,7 +81,7 @@ function looksLikeNames(line) {
 }
 
 function splitNames(text) {
-  const normalized = clean(text).replace(/^\(|\)$/g, '').replace(/^[•·\s]+/, '').replace(/^&\s*/, '').replace(/\s+(?:anf|and)\s+other.*$/i, '').replace(/^(?:участники|действующие лица)\s*:\s*/i, '');
+  const normalized = clean(text).replace(/^\((.*)\)$/s, '$1').replace(/^[•·\s]+/, '').replace(/^&\s*/, '').replace(/\s+(?:anf|and)\s+other.*$/i, '').replace(/^(?:участники|действующие лица|в главных ролях|в фильме также снимались)\s*:\s*/i, '');
   if (/^(?:все желающие|все|любой желающий)/i.test(normalized)) return [normalized];
   return normalized.split(/\s*(?:&|,|\+|\/|\band\b)\s*|\s+(?=@)/i)
     .map((name) => clean(name.replace(/^@/, '').replace(/[.;]+$/, '')))
@@ -96,10 +98,12 @@ function parseParticipants(body) {
   }
   const boundary = lines.findIndex((line, index) => /^(?:предупреждения|дата(?: и место)?|описание эпизода|место|время)\s*:/i.test(line) || (index > 1 && /\b\d{1,2}\s*[-–—.]\s*\d{1,2}[./]\d{1,2}[./]\d{2,4}\b/.test(line)));
   const candidates = lines.slice(0, boundary < 0 ? Math.min(lines.length, 12) : boundary);
+  const cinematic = candidates.filter((line) => /^(?:в главных ролях|в фильме также снимались)\s*:/i.test(line));
+  if (cinematic.length) return [...new Set(cinematic.flatMap(splitNames))];
   const invited = candidates.find((line) => /(?:для господ|приглашены|играют)\s*:/i.test(line));
   if (invited) return [...new Set(splitNames(invited.replace(/^.*?(?:для господ|приглашены|играют)\s*:\s*/i, '')))];
-  const labeled = candidates.find((line) => /^(?:(?:список\s+)?участники(?:\s+квеста)?|действующие лица)\s*:/i.test(line));
-  if (labeled) return [...new Set(splitNames(labeled.replace(/^(?:(?:список\s+)?участники(?:\s+квеста)?|действующие лица)\s*:/i, '')).filter((name) => !/^(?:TBD|уточняется|—|-)$/i.test(name)))];
+  const labeled = candidates.find((line) => /^(?:(?:список\s+)?участник[^:]*|действующие лица)\s*:/i.test(line));
+  if (labeled) return [...new Set(splitNames(labeled.replace(/^[^:]+:\s*/, '')).filter((name) => !/^(?:TBD|уточняется|—|-)$/i.test(name)))];
   const nameLines = candidates.filter(looksLikeNames);
   let end = candidates.length - 1;
   while (end >= 0 && !looksLikeNames(candidates[end])) end -= 1;
@@ -109,7 +113,12 @@ function parseParticipants(body) {
     end -= 1;
   }
   if (!selected.length && nameLines.length) selected.push(nameLines.at(-1));
-  return [...new Set(selected.flatMap(splitNames))];
+  let parsed = [...new Set(selected.flatMap(splitNames))];
+  if (parsed.length > 1) {
+    const headings = new Set(lines.slice(0, 2).filter((line) => !/[@&,+:]/.test(line)).map((line) => line.toLowerCase()));
+    parsed = parsed.filter((name) => !headings.has(name.toLowerCase()));
+  }
+  return parsed;
 }
 
 function buildMaskIndex(masks = []) {
