@@ -149,9 +149,9 @@ function extractField(body, label, stopLabels) {
   return clean([first, ...rest].join(' '));
 }
 
-function normalizeEpisode(source, maskIndex) {
+function normalizeEpisode(source, maskIndex, nameAliases = {}) {
   const parsed = parseDate(source.body, source.title);
-  const participants = parseParticipants(source.body);
+  const participants = parseParticipants(source.body).map((character) => nameAliases[character.toLowerCase()] || character);
   const players = [...new Set(participants.map((character) => maskIndex.ownerByCharacter[character.toLowerCase()] || character))];
   const idMatch = source.url.match(/[?&]id=(\d+)/);
   const rawTitle = clean(source.title);
@@ -174,7 +174,8 @@ function normalizeEpisode(source, maskIndex) {
 
 function normalizeEpisodes(source) {
   const maskIndex = buildMaskIndex(source.masks || []);
-  return (source.episodes || []).map((episode) => normalizeEpisode(episode, maskIndex)).sort((a, b) => a.dateStart.localeCompare(b.dateStart) || a.title.localeCompare(b.title, 'ru'));
+  const nameAliases = Object.fromEntries(Object.entries(source.nameAliases || {}).map(([alias, canonical]) => [clean(alias).toLowerCase(), clean(canonical)]));
+  return (source.episodes || []).map((episode) => normalizeEpisode(episode, maskIndex, nameAliases)).sort((a, b) => a.dateStart.localeCompare(b.dateStart) || a.title.localeCompare(b.title, 'ru'));
 }
 
 function countSourceBuckets(episodes) {

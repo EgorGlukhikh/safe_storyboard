@@ -84,3 +84,14 @@ test('indexes Gilroy Reid under Arthur Weasley without losing the mask identity'
   assert.ok(arthur.aliases.includes('Gilroy Reid'));
   assert.ok(episodes.some((episode) => episode.players.includes('Arthur Weasley') && episode.participants.includes('Gilroy Reid')));
 });
+
+test('canonicalizes Cyrillic participant spellings in episode 1248 for character filters', () => {
+  const { normalizeEpisodes } = loadCalendar();
+  const episode = normalizeEpisodes(loadSource()).find((item) => item.id === 1248);
+
+  assert.ok(episode);
+  assert.deepEqual(episode.participants, ['Zaxar MacFusty', 'Gilroy Reid']);
+  assert.deepEqual(episode.players, ['Zaxar MacFusty', 'Arthur Weasley']);
+  assert.equal(episode.state, 'current');
+  assert.equal(episode.dateStart, '1979-08-11');
+});
