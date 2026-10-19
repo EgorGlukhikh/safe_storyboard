@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Карта эпизодов · SafeSpace</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <script src="assets/app.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="eyebrow">Marauders: SafeSpace · 1960–1981</div>
+    <div class="title-row">
+      <div>
+        <h1>Карта<br>эпизодов</h1>
+        <p>Сюжетные и личные истории форума — по годам, месяцам и точным датам.</p>
+      </div>
+      <div class="edition" aria-hidden="true"><span>Выпуск</span><b>01</b><em>356 историй</em></div>
+    </div>
+  </header>
+
+  <main>
+    <aside class="filter-panel" aria-label="Фильтры эпизодов">
+      <form id="filters">
+        <div class="filter-heading"><span>Указатель</span><output id="result-count" aria-live="polite">356 из 356</output></div>
+        <label>Год<select name="year"></select></label>
+        <label>Месяц<select name="month"></select></label>
+        <label>Участник или игрок<select name="person"></select></label>
+        <div class="filter-pair">
+          <label>Тип<select name="kind"><option value="">Все типы</option><option value="plot">Сюжетные</option><option value="personal">Личные</option></select></label>
+          <label>Статус<select name="state"><option value="">Любой</option><option value="current">Текущие</option><option value="archive">Архив</option></select></label>
+        </div>
+        <label>Поиск<input name="search" type="search" placeholder="Название, место, участник…"></label>
+        <button id="reset-filters" type="button">Сбросить фильтры</button>
+      </form>
+      <p class="filter-note">Маски объединены с владельцами. Выбор Arthur Weasley покажет и эпизоды Gilroy Reid.</p>
+    </aside>
+    <div id="calendar" class="calendar" aria-live="polite" aria-busy="false"></div>
+  </main>
+
+  <footer>Собрано из текущих и архивных сюжетных и личных эпизодов · Альтернатива не включена</footer>
+</body>
+</html>
